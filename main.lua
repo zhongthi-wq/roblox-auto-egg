@@ -10,6 +10,7 @@ local Events = ReplicatedStorage:WaitForChild("Events")
 local EGGS = {
     {Name = "BasicEgg", Price = 250, Enabled = false},
     {Name = "UncommonEgg", Price = 2500, Enabled = false},
+    {Name = "UncommonRareEgg", Price = 25000, Enabled = false},
 }
 local BUY_DELAY = 0.5
 local CLAIM_DELAY = 1
