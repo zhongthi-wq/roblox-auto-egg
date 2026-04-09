@@ -19,9 +19,12 @@ local autoClaimEnabled = false
 -- === FIND PLAYER PLOT ===
 local function getPlayerPlot()
     for _, plot in pairs(workspace.Core.Scriptable.Plots:GetChildren()) do
-        for _, child in pairs(plot.Eggs:GetChildren()) do
-            if child:GetAttribute("plotOwner") == player.Name then
-                return plot.Name
+        local eggs = plot:FindFirstChild("Eggs")
+        if eggs then
+            for _, child in pairs(eggs:GetChildren()) do
+                if child:GetAttribute("plotOwner") == player.Name then
+                    return plot.Name
+                end
             end
         end
     end
@@ -165,19 +168,26 @@ end)
 
 -- === AUTO BUY EGGS ===
 spawn(function()
+    wait(2) -- cho game load xong
     local plotId = getPlayerPlot()
+    warn("[AutoEgg] Plot ID: " .. tostring(plotId))
+
     while wait(BUY_DELAY) do
         for _, egg in ipairs(EGGS) do
             if egg.Enabled and getCoins() >= egg.Price then
-                pcall(function()
+                local ok, err = pcall(function()
                     local eggsFolder = workspace.Core.Scriptable.Plots[plotId].Eggs
                     for _, child in pairs(eggsFolder:GetChildren()) do
                         if child:GetAttribute("baseName") == egg.Name then
+                            warn("[AutoEgg] Buying: " .. egg.Name .. " | ID: " .. child.Name .. " | Plot: " .. plotId)
                             Events:WaitForChild("PurchaseConveyorEgg"):FireServer(child.Name, plotId)
                             break
                         end
                     end
                 end)
+                if not ok then
+                    warn("[AutoEgg] ERROR: " .. tostring(err))
+                end
             end
         end
     end
