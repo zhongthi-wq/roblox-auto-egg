@@ -33,7 +33,7 @@ end
 
 -- === GET COINS ===
 local function getCoins()
-    return player.leaderstats.Coins.Value
+    return tonumber(player.leaderstats.Coins.Value) or 0
 end
 
 -- === GUI ===
