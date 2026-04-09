@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
+local Events = ReplicatedStorage:WaitForChild("Events")
 
 -- === CONFIG ===
 local EGGS = {
@@ -11,6 +12,20 @@ local EGGS = {
     {Name = "UncommonEgg", Price = 2500, Enabled = false},
 }
 local BUY_DELAY = 0.5
+local CLAIM_DELAY = 1
+local autoClaimEnabled = false
+
+-- === FIND PLAYER PLOT ===
+local function getPlayerPlot()
+    for _, plot in pairs(workspace.Core.Scriptable.Plots:GetChildren()) do
+        for _, child in pairs(plot.Eggs:GetChildren()) do
+            if child:GetAttribute("plotOwner") == player.Name then
+                return plot.Name
+            end
+        end
+    end
+    return "1"
+end
 
 -- === GET COINS ===
 local function getCoins()
@@ -18,6 +33,10 @@ local function getCoins()
 end
 
 -- === GUI ===
+if player.PlayerGui:FindFirstChild("AutoBuyEggs") then
+    player.PlayerGui.AutoBuyEggs:Destroy()
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoBuyEggs"
 ScreenGui.ResetOnSpawn = false
@@ -34,11 +53,15 @@ Frame.AutomaticSize = Enum.AutomaticSize.Y
 
 Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
 
+local Layout = Instance.new("UIListLayout", Frame)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Padding = UDim.new(0, 2)
+
 -- Title
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 36)
 Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-Title.Text = "Auto Buy Eggs"
+Title.Text = "Auto Egg Hub"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
@@ -59,10 +82,6 @@ CoinLabel.LayoutOrder = 1
 CoinLabel.Parent = Frame
 Instance.new("UICorner", CoinLabel).CornerRadius = UDim.new(0, 6)
 
-local Layout = Instance.new("UIListLayout", Frame)
-Layout.SortOrder = Enum.SortOrder.LayoutOrder
-Layout.Padding = UDim.new(0, 2)
-
 -- Drag
 local dragging, dragStart, startPos
 Title.InputBegan:Connect(function(input)
@@ -82,29 +101,44 @@ game:GetService("UserInputService").InputChanged:Connect(function(input)
     end
 end)
 
--- Buttons
-for i, egg in ipairs(EGGS) do
+-- === HELPER: Create toggle button ===
+local function createToggle(text, layoutOrder, callback)
     local Btn = Instance.new("TextButton")
     Btn.Size = UDim2.new(1, -10, 0, 36)
     Btn.Position = UDim2.new(0, 5, 0, 0)
     Btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-    Btn.Text = egg.Name .. " (" .. egg.Price .. ") - OFF"
+    Btn.Text = text .. " - OFF"
     Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Btn.Font = Enum.Font.GothamSemibold
     Btn.TextSize = 13
-    Btn.LayoutOrder = i + 1
+    Btn.LayoutOrder = layoutOrder
     Btn.Parent = Frame
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
 
+    local enabled = false
     Btn.MouseButton1Click:Connect(function()
-        egg.Enabled = not egg.Enabled
-        if egg.Enabled then
+        enabled = not enabled
+        if enabled then
             Btn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-            Btn.Text = egg.Name .. " (" .. egg.Price .. ") - ON"
+            Btn.Text = text .. " - ON"
         else
             Btn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-            Btn.Text = egg.Name .. " (" .. egg.Price .. ") - OFF"
+            Btn.Text = text .. " - OFF"
         end
+        callback(enabled)
+    end)
+    return Btn
+end
+
+-- Auto Claim Coins button
+createToggle("Auto Claim Coins", 2, function(state)
+    autoClaimEnabled = state
+end)
+
+-- Egg buttons
+for i, egg in ipairs(EGGS) do
+    createToggle(egg.Name .. " (" .. egg.Price .. ")", i + 2, function(state)
+        egg.Enabled = state
     end)
 end
 
@@ -117,16 +151,28 @@ spawn(function()
     end
 end)
 
--- === AUTO BUY LOOP ===
+-- === AUTO CLAIM COINS ===
 spawn(function()
+    while wait(CLAIM_DELAY) do
+        if autoClaimEnabled then
+            pcall(function()
+                Events:WaitForChild("ClaimCoins"):FireServer("Collect_Coins")
+            end)
+        end
+    end
+end)
+
+-- === AUTO BUY EGGS ===
+spawn(function()
+    local plotId = getPlayerPlot()
     while wait(BUY_DELAY) do
         for _, egg in ipairs(EGGS) do
             if egg.Enabled and getCoins() >= egg.Price then
                 pcall(function()
-                    local eggsFolder = workspace.Core.Scriptable.Plots["1"].Eggs
+                    local eggsFolder = workspace.Core.Scriptable.Plots[plotId].Eggs
                     for _, child in pairs(eggsFolder:GetChildren()) do
                         if child:GetAttribute("baseName") == egg.Name then
-                            ReplicatedStorage:WaitForChild("Events"):WaitForChild("PurchaseConveyorEgg"):FireServer(child.Name, "1")
+                            Events:WaitForChild("PurchaseConveyorEgg"):FireServer(child.Name, plotId)
                             break
                         end
                     end
